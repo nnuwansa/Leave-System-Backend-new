@@ -43,9 +43,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // preflight
-                        // ✅ Employees can access their own data, admins can access all
+                        //  Employees can access their own data, admins can access all
                         .requestMatchers("/Employees/**").hasAnyRole("EMPLOYEE", "ADMIN", "HR")
-                        // ✅ Officers & Admins can access dashboard
+                        //  Officers & Admins can access dashboard
                         .requestMatchers("/leaves/dashboard/**").hasAnyRole("EMPLOYEE", "ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -59,7 +59,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:5173"));
+        configuration.setAllowedOriginPatterns(List.of("https://leave-system-frontend.onrender.com"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
