@@ -48,12 +48,16 @@ public class EmployeeController {
         }
     }
 
-    @PutMapping("/change-password/{email}")
+    @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(
-            @PathVariable String email,
+            @RequestHeader("Authorization") String authHeader,
             @RequestBody ChangePasswordRequest request
     ) {
         try {
+            //  Extract email from token, don't trust path variable
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.extractUsername(token);
+
             String msg = passwordService.changePassword(email, request);
             return ResponseEntity.ok(msg);
         } catch (RuntimeException e) {
@@ -61,7 +65,8 @@ public class EmployeeController {
         }
     }
 
-    // ✅ Delete employee
+
+    //  Delete employee
     @DeleteMapping("/{email}")
     public ResponseEntity<String> deleteEmployee(@PathVariable String email) {
         if (userRepository.existsByEmail(email)) {
