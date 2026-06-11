@@ -17,17 +17,17 @@ public class HistoricalLeaveSummary {
     private String employeeEmail;
     private int year;
 
-    // Leave type summaries
+
     private double casualUsed = 0.0;
     private int casualTotal = 21;
     private double sickUsed = 0.0;
     private int sickTotal = 24;
     private double dutyUsed = 0.0; // Track duty leave usage even though unlimited
 
-    // Short leave monthly breakdown (Jan-Dec)
+
     private Map<String, Map<String, Integer>> shortLeaveMonthlyDetails = new HashMap<>();
 
-    // Additional fields for historical data
+
     private String notes; // Optional notes about the historical data
     private String addedBy; // Email of admin who added this record
 

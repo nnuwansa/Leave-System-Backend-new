@@ -1,3 +1,4 @@
+
 package com.LeaveDataManagementSystem.LeaveManagement.Service;
 
 import com.LeaveDataManagementSystem.LeaveManagement.Model.*;
@@ -894,6 +895,86 @@ public class LeaveEntitlementService {
             case "SHORT_LEAVE": return "Short Leave";
             default: return leaveType.replace("_", " ");
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // MONTHLY LEAVE USAGE BREAKDOWN
+    // Derived from "leaves" collection — no schema change needed
+    // ═══════════════════════════════════════════════════════════════════
+    public Map<String, Object> getMonthlyLeaveUsageBreakdown(String employeeEmail, int year) {
+        String[] monthNames = {
+                "January","February","March","April","May","June",
+                "July","August","September","October","November","December"
+        };
+
+        List<Leave> approvedLeaves = leaveRepository
+                .findByEmployeeEmailOrderByCreatedAtDesc(employeeEmail)
+                .stream()
+                .filter(l -> l.getStartDate() != null
+                        && l.getStartDate().getYear() == year
+                        && l.getStatus() == LeaveStatus.APPROVED
+                        && !l.isCancelled())
+                .collect(Collectors.toList());
+
+        // Build monthly breakdown: { "January": { "CASUAL": 1.0, "SICK": 0.0, ... }, ... }
+        Map<String, Map<String, Double>> monthlyData = new LinkedHashMap<>();
+        for (String month : monthNames) {
+            Map<String, Double> types = new LinkedHashMap<>();
+            types.put("CASUAL",    0.0);
+            types.put("SICK",      0.0);
+            types.put("DUTY",      0.0);
+            types.put("HALF_DAY",  0.0);
+            types.put("SHORT",     0.0);
+            types.put("MATERNITY", 0.0);
+            monthlyData.put(month, types);
+        }
+
+        for (Leave leave : approvedLeaves) {
+            int monthIdx   = leave.getStartDate().getMonthValue() - 1;
+            String monthName = monthNames[monthIdx];
+            Map<String, Double> monthMap = monthlyData.get(monthName);
+            String leaveType = leave.getLeaveType();
+            double days;
+
+            if (leave.isShortLeave() || "SHORT".equals(leaveType)) {
+                monthMap.merge("SHORT", 1.0, Double::sum);
+                continue;
+            } else if (leave.isHalfDay() || "HALF_DAY".equals(leaveType)) {
+                days = 0.5; leaveType = "HALF_DAY";
+            } else {
+                days = leave.getWorkingDays() > 0 ? leave.getWorkingDays()
+                        : (leave.getTotalDays() > 0  ? leave.getTotalDays() : 1);
+            }
+            monthMap.merge(leaveType, days, Double::sum);
+        }
+
+        // Year totals per leave type
+        Map<String, Double> yearTotals = new LinkedHashMap<>();
+        for (String t : new String[]{"CASUAL","SICK","DUTY","HALF_DAY","SHORT","MATERNITY"})
+            yearTotals.put(t, 0.0);
+        for (Map<String, Double> m : monthlyData.values())
+            m.forEach((t, d) -> yearTotals.merge(t, d, Double::sum));
+
+        // Current entitlement balances
+        Map<String, Object> entitlementSummary = new LinkedHashMap<>();
+        for (LeaveEntitlement ent : leaveEntitlementRepository.findByEmployeeEmailAndYear(employeeEmail, year)) {
+            Map<String, Object> ed = new LinkedHashMap<>();
+            ed.put("total",     ent.isUnlimited() ? "Unlimited" : ent.getTotalEntitlement());
+            ed.put("used",      ent.getUsedDays());
+            ed.put("remaining", ent.isUnlimited() ? "Unlimited" : ent.getRemainingDays());
+            ed.put("carryOver", ent.getCarryOverDays());
+            ed.put("unlimited", ent.isUnlimited());
+            entitlementSummary.put(ent.getLeaveType(), ed);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("employeeEmail",    employeeEmail);
+        result.put("year",             year);
+        result.put("monthlyBreakdown", monthlyData);
+        result.put("yearTotals",       yearTotals);
+        result.put("entitlements",     entitlementSummary);
+        result.put("totalLeaves",      approvedLeaves.size());
+        return result;
     }
 
     public String validateLeaveRequestWithWorkingDays(String employeeEmail, String leaveType,

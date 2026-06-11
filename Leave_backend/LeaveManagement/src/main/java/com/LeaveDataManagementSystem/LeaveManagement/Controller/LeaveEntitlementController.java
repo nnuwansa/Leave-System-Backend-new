@@ -482,6 +482,66 @@ public class LeaveEntitlementController {
         }
     }
 
+    // ── Monthly leave usage breakdown — employee's own ────────────────────────
+    // GET /entitlements/monthly-breakdown?year=2026
+    @GetMapping("/monthly-breakdown")
+    public ResponseEntity<?> getMyMonthlyBreakdown(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(defaultValue = "0") int year) {
+        try {
+            String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
+            int targetYear = year == 0 ? LocalDate.now().getYear() : year;
+            return ResponseEntity.ok(
+                    leaveEntitlementService.getMonthlyLeaveUsageBreakdown(email, targetYear));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("❌ " + e.getMessage());
+        }
+    }
+
+    // ── Monthly leave usage breakdown — admin: single employee ───────────────
+    // GET /entitlements/admin/monthly-breakdown/user@email.com?year=2026
+    @GetMapping("/admin/monthly-breakdown/{email}")
+    public ResponseEntity<?> getEmployeeMonthlyBreakdown(
+            @PathVariable String email,
+            @RequestParam(defaultValue = "0") int year,
+            @RequestHeader("Authorization") String token) {
+        try {
+            int targetYear = year == 0 ? LocalDate.now().getYear() : year;
+            return ResponseEntity.ok(
+                    leaveEntitlementService.getMonthlyLeaveUsageBreakdown(email, targetYear));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("❌ " + e.getMessage());
+        }
+    }
+
+    // ── Monthly leave usage breakdown — admin: ALL employees ─────────────────
+    // GET /entitlements/admin/monthly-breakdown-all?year=2026
+    @GetMapping("/admin/monthly-breakdown-all")
+    public ResponseEntity<?> getAllMonthlyBreakdown(
+            @RequestParam(defaultValue = "0") int year,
+            @RequestHeader("Authorization") String token) {
+        try {
+            int targetYear = year == 0 ? LocalDate.now().getYear() : year;
+            List<User> users = userRepository.findAll().stream()
+                    .filter(u -> u.getRoles() == null || !u.getRoles().contains("ADMIN"))
+                    .collect(Collectors.toList());
+            List<Map<String, Object>> all = new ArrayList<>();
+            for (User u : users) {
+                Map<String, Object> bd =
+                        leaveEntitlementService.getMonthlyLeaveUsageBreakdown(u.getEmail(), targetYear);
+                bd.put("employeeName",     u.getName());
+                bd.put("employeeFullName", u.getFullName());
+                bd.put("department",       u.getDepartment());
+                bd.put("designation",      u.getDesignation());
+                all.add(bd);
+            }
+            return ResponseEntity.ok(all);
+        } catch (Exception e) {
+            logger.error("Monthly breakdown all: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("❌ " + e.getMessage());
+        }
+    }
+
 
 
 
