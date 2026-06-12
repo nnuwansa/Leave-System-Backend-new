@@ -1259,7 +1259,9 @@ public class LeaveController {
                     .collect(Collectors.toList());
 
 // SUPERVISING: otherDepartments ONLY
-            List<User> supervisingList = otherMatch.stream()
+            List<User> supervisingList = userRepository
+                    .findByOtherDepartmentsContaining(department)
+                    .stream()
                     .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
                     .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                     .collect(Collectors.toList());
