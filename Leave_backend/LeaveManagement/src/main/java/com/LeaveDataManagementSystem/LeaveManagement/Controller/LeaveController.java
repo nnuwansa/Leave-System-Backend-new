@@ -1226,17 +1226,48 @@ public class LeaveController {
             List<User> allDeptUsers = userRepository.findByDepartment("All");
 
             // Merge acting/supervising — primary + otherDepts, exclude self
-            Map<String, User> actingMap = new LinkedHashMap<>();
-            for (User u : primaryMatch) actingMap.put(u.getEmail(), u);
-            for (User u : otherMatch)   actingMap.put(u.getEmail(), u);
-
-            List<User> actingList = actingMap.values().stream()
+//            Map<String, User> actingMap = new LinkedHashMap<>();
+//            for (User u : primaryMatch) actingMap.put(u.getEmail(), u);
+//            for (User u : otherMatch)   actingMap.put(u.getEmail(), u);
+//
+//            List<User> actingList = actingMap.values().stream()
+//                    .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
+//                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+//                    .collect(Collectors.toList());
+//
+//            // Merge approval — acting list + "All" dept users
+//            Map<String, User> approvalMap = new LinkedHashMap<>(actingMap);
+//            for (User u : allDeptUsers) approvalMap.put(u.getEmail(), u);
+//
+//            List<User> approvalList = approvalMap.values().stream()
+//                    .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
+//                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+//                    .collect(Collectors.toList());
+//
+//            Map<String, Object> response = new HashMap<>();
+//            response.put("acting",      actingList);
+//            response.put("supervising", actingList);
+//            response.put("approval",    approvalList);
+//            response.put("department",  department);
+//
+//            logger.info("Officers for dept='{}': acting={}, approval={}, excluded={}",
+//                    department, actingList.size(), approvalList.size(), excludeEmail);
+            // ACTING: primary department ONLY
+            List<User> actingList = primaryMatch.stream()
                     .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
                     .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                     .collect(Collectors.toList());
 
-            // Merge approval — acting list + "All" dept users
-            Map<String, User> approvalMap = new LinkedHashMap<>(actingMap);
+// SUPERVISING: otherDepartments ONLY
+            List<User> supervisingList = otherMatch.stream()
+                    .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
+                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                    .collect(Collectors.toList());
+
+// APPROVAL: primary + otherDepts + "All" dept users
+            Map<String, User> approvalMap = new LinkedHashMap<>();
+            for (User u : primaryMatch) approvalMap.put(u.getEmail(), u);
+            for (User u : otherMatch)   approvalMap.put(u.getEmail(), u);
             for (User u : allDeptUsers) approvalMap.put(u.getEmail(), u);
 
             List<User> approvalList = approvalMap.values().stream()
@@ -1246,12 +1277,12 @@ public class LeaveController {
 
             Map<String, Object> response = new HashMap<>();
             response.put("acting",      actingList);
-            response.put("supervising", actingList);
+            response.put("supervising", supervisingList);
             response.put("approval",    approvalList);
             response.put("department",  department);
 
-            logger.info("Officers for dept='{}': acting={}, approval={}, excluded={}",
-                    department, actingList.size(), approvalList.size(), excludeEmail);
+            logger.info("Officers for dept='{}': acting={}, supervising={}, approval={}, excluded={}",
+                    department, actingList.size(), supervisingList.size(), approvalList.size(), excludeEmail);
 
             return ResponseEntity.ok(response);
 

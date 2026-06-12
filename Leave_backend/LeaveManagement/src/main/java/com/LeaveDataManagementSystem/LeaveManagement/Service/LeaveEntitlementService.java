@@ -1,4 +1,3 @@
-
 package com.LeaveDataManagementSystem.LeaveManagement.Service;
 
 import com.LeaveDataManagementSystem.LeaveManagement.Model.*;
@@ -332,6 +331,8 @@ public class LeaveEntitlementService {
                     logger.warn("No SICK entitlement found for half-day fallback for {}", employeeEmail);
                 }
             }
+            // Update monthly usage after half-day approval
+            updateMonthlyUsageForEmployee(employeeEmail, currentYear);
             return;
         }
 
@@ -352,6 +353,9 @@ public class LeaveEntitlementService {
         } else {
             logger.warn("No entitlement found for type: {} for employee: {}", actualLeaveType, employeeEmail);
         }
+
+        // Update monthly usage breakdown after any approval
+        updateMonthlyUsageForEmployee(employeeEmail, currentYear);
     }
 
     // Overloaded — backward compatibility
@@ -449,6 +453,9 @@ public class LeaveEntitlementService {
         } else {
             logger.warn("No entitlement found for employee: {}, leaveType: {}", employeeEmail, actualLeaveType);
         }
+
+        // Update monthly usage after revert
+        updateMonthlyUsageForEmployee(employeeEmail, currentYear);
     }
 
     // Overloaded — backward compatibility
@@ -975,6 +982,121 @@ public class LeaveEntitlementService {
         result.put("entitlements",     entitlementSummary);
         result.put("totalLeaves",      approvedLeaves.size());
         return result;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // UPDATE MONTHLY USAGE — called after every leave approval/revert
+    // Recalculates monthlyUsage from actual leaves collection
+    // ═══════════════════════════════════════════════════════════════════
+    public void updateMonthlyUsageForEmployee(String employeeEmail, int year) {
+        try {
+            String[] monthNames = {
+                    "January","February","March","April","May","June",
+                    "July","August","September","October","November","December"
+            };
+
+            // Get all approved non-cancelled leaves for this employee+year
+            List<Leave> approvedLeaves = leaveRepository
+                    .findByEmployeeEmailOrderByCreatedAtDesc(employeeEmail)
+                    .stream()
+                    .filter(l -> l.getStartDate() != null
+                            && l.getStartDate().getYear() == year
+                            && l.getStatus() == LeaveStatus.APPROVED
+                            && !l.isCancelled())
+                    .collect(Collectors.toList());
+
+            // Build per-type monthly data
+            // monthlyByType[leaveType][monthName] = { days, dates[] }
+            java.util.Map<String, java.util.Map<String, double[]>> daysMap   = new java.util.HashMap<>();
+            java.util.Map<String, java.util.Map<String, java.util.List<String>>> datesMap = new java.util.HashMap<>();
+            String[] TYPES = {"CASUAL","SICK","DUTY","HALF_DAY","SHORT","MATERNITY"};
+            for (String t : TYPES) {
+                daysMap.put(t, new java.util.HashMap<>());
+                datesMap.put(t, new java.util.HashMap<>());
+                for (String m : monthNames) {
+                    daysMap.get(t).put(m, new double[]{0});
+                    datesMap.get(t).put(m, new java.util.ArrayList<>());
+                }
+            }
+
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+            for (Leave l : approvedLeaves) {
+                int    mIdx     = l.getStartDate().getMonthValue() - 1;
+                String mName    = monthNames[mIdx];
+                String ltype    = l.getLeaveType();
+                String startStr = l.getStartDate().format(fmt);
+                String endStr   = (l.getEndDate() != null) ? l.getEndDate().format(fmt) : startStr;
+                String dateLabel = startStr.equals(endStr) ? startStr : startStr + " ~ " + endStr;
+
+                if (l.isShortLeave() || "SHORT".equals(ltype)) {
+                    daysMap.get("SHORT").get(mName)[0]  += 1;
+                    datesMap.get("SHORT").get(mName).add(startStr);
+                } else if (l.isHalfDay() || "HALF_DAY".equals(ltype)) {
+                    String period = l.getHalfDayPeriod() != null ? " (" + l.getHalfDayPeriod() + ")" : "";
+                    daysMap.get("HALF_DAY").get(mName)[0]  += 0.5;
+                    datesMap.get("HALF_DAY").get(mName).add(startStr + period);
+                } else if ("MATERNITY".equals(ltype)) {
+                    double d = l.getWorkingDays() > 0 ? l.getWorkingDays() : (l.getTotalDays() > 0 ? l.getTotalDays() : 0);
+                    daysMap.get("MATERNITY").get(mName)[0]  += d;
+                    datesMap.get("MATERNITY").get(mName).add(dateLabel + " (" + (int)d + "d)");
+                } else if (java.util.Arrays.asList("CASUAL","SICK","DUTY").contains(ltype)) {
+                    double d = l.getWorkingDays() > 0 ? l.getWorkingDays() : (l.getTotalDays() > 0 ? l.getTotalDays() : 1);
+                    daysMap.get(ltype).get(mName)[0]  += d;
+                    datesMap.get(ltype).get(mName).add(dateLabel + " (" + (int)d + "d)");
+                }
+            }
+
+            // entitlement → which leave types to store in it
+            java.util.Map<String, String[]> entTypeMap = new java.util.LinkedHashMap<>();
+            entTypeMap.put("CASUAL",    new String[]{"CASUAL","HALF_DAY","SHORT"});
+            entTypeMap.put("SICK",      new String[]{"SICK"});
+            entTypeMap.put("DUTY",      new String[]{"DUTY"});
+            entTypeMap.put("MATERNITY", new String[]{"MATERNITY"});
+
+            for (java.util.Map.Entry<String, String[]> e : entTypeMap.entrySet()) {
+                String   entType    = e.getKey();
+                String[] leaveTypes = e.getValue();
+
+                Optional<LeaveEntitlement> entOpt = leaveEntitlementRepository
+                        .findByEmployeeEmailAndLeaveTypeAndYear(employeeEmail, entType, year);
+                if (entOpt.isEmpty()) continue;
+
+                LeaveEntitlement ent = entOpt.get();
+
+                // Build monthlyUsage map — only non-empty months
+                java.util.Map<String, java.util.Map<String, Object>> monthlyUsage = new java.util.LinkedHashMap<>();
+                for (String m : monthNames) {
+                    java.util.Map<String, Object> monthEntry = new java.util.LinkedHashMap<>();
+                    boolean hasData = false;
+                    for (String lt : leaveTypes) {
+                        double days = daysMap.get(lt).get(m)[0];
+                        if (days > 0) {
+                            java.util.Map<String, Object> typeData = new java.util.LinkedHashMap<>();
+                            typeData.put("days",  days);
+                            typeData.put("dates", datesMap.get(lt).get(m));
+                            monthEntry.put(lt, typeData);
+                            hasData = true;
+                        }
+                    }
+                    if (hasData) monthlyUsage.put(m, monthEntry);
+                }
+
+                double yearTotal = 0;
+                for (String lt : leaveTypes)
+                    for (String m : monthNames)
+                        yearTotal += daysMap.get(lt).get(m)[0];
+
+                ent.setMonthlyUsage(monthlyUsage);
+                ent.setYearTotalUsed(yearTotal);
+                ent.setMonthlyUsageUpdatedAt(java.time.LocalDateTime.now());
+                leaveEntitlementRepository.save(ent);
+            }
+
+            logger.info("[MonthlyUsage] Updated for {} year {}", employeeEmail, year);
+        } catch (Exception ex) {
+            logger.error("[MonthlyUsage] Failed for {}: {}", employeeEmail, ex.getMessage(), ex);
+        }
     }
 
     public String validateLeaveRequestWithWorkingDays(String employeeEmail, String leaveType,

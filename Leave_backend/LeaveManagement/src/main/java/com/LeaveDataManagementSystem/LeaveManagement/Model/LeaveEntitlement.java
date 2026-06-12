@@ -1,4 +1,3 @@
-
 package com.LeaveDataManagementSystem.LeaveManagement.Model;
 
 import org.springframework.data.annotation.CreatedDate;
@@ -6,7 +5,6 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Document(collection = "Leave Entitlements")
 public class LeaveEntitlement {
@@ -29,12 +27,11 @@ public class LeaveEntitlement {
     // ── track which leave type was used for a half-day deduction ─────
     private String halfDayDeductedFrom = null; // "CASUAL" or "SICK"
 
-    // ── Monthly usage breakdown — saved by save_monthly_breakdown.js ─
-    // Structure: { "January": { "CASUAL": 1.0, "HALF_DAY": 0.5 }, "March": { "CASUAL": 2.0 } }
-    // Auto-updated when leaves are approved/cancelled
-    private java.util.Map<String, java.util.Map<String, Double>> monthlyUsage = new java.util.LinkedHashMap<>();
+    // ── Monthly usage breakdown — auto-updated on leave approval/revert ─
+    // Structure: { "July": { "SICK": { "days": 2.0, "dates": ["2026-07-02 ~ 2026-07-03 (2d)"] } } }
+    private java.util.Map<String, java.util.Map<String, Object>> monthlyUsage = new java.util.LinkedHashMap<>();
 
-    // Year total from leave records (recalculated)
+    // Year total from leave records
     private double yearTotalUsed = 0.0;
 
     // When monthlyUsage was last recalculated
@@ -181,35 +178,22 @@ public class LeaveEntitlement {
     public String getHalfDayDeductedFrom() { return halfDayDeductedFrom; }
     public void setHalfDayDeductedFrom(String halfDayDeductedFrom) { this.halfDayDeductedFrom = halfDayDeductedFrom; }
 
+    public java.util.Map<String, java.util.Map<String, Object>> getMonthlyUsage() { return monthlyUsage; }
+    public void setMonthlyUsage(java.util.Map<String, java.util.Map<String, Object>> monthlyUsage) {
+        this.monthlyUsage = monthlyUsage != null ? monthlyUsage : new java.util.LinkedHashMap<>();
+    }
+
+    public double getYearTotalUsed() { return yearTotalUsed; }
+    public void setYearTotalUsed(double yearTotalUsed) { this.yearTotalUsed = yearTotalUsed; }
+
+    public java.time.LocalDateTime getMonthlyUsageUpdatedAt() { return monthlyUsageUpdatedAt; }
+    public void setMonthlyUsageUpdatedAt(java.time.LocalDateTime v) { this.monthlyUsageUpdatedAt = v; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
-    public Map<String, Map<String, Double>> getMonthlyUsage() {
-        return monthlyUsage;
-    }
 
-    public void setMonthlyUsage(Map<String, Map<String, Double>> monthlyUsage) {
-        this.monthlyUsage = monthlyUsage;
-    }
-
-    public double getYearTotalUsed() {
-        return yearTotalUsed;
-    }
-
-    public void setYearTotalUsed(double yearTotalUsed) {
-        this.yearTotalUsed = yearTotalUsed;
-    }
-
-    public LocalDateTime getMonthlyUsageUpdatedAt() {
-        return monthlyUsageUpdatedAt;
-    }
-
-    public void setMonthlyUsageUpdatedAt(LocalDateTime monthlyUsageUpdatedAt) {
-        this.monthlyUsageUpdatedAt = monthlyUsageUpdatedAt;
-    }
 }
-
-
