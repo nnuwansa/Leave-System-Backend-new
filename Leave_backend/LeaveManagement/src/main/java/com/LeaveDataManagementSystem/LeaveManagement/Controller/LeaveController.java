@@ -1225,34 +1225,7 @@ public class LeaveController {
             // Query 3: "All" department users (for approval officer only)
             List<User> allDeptUsers = userRepository.findByDepartment("All");
 
-            // Merge acting/supervising — primary + otherDepts, exclude self
-//            Map<String, User> actingMap = new LinkedHashMap<>();
-//            for (User u : primaryMatch) actingMap.put(u.getEmail(), u);
-//            for (User u : otherMatch)   actingMap.put(u.getEmail(), u);
-//
-//            List<User> actingList = actingMap.values().stream()
-//                    .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
-//                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
-//                    .collect(Collectors.toList());
-//
-//            // Merge approval — acting list + "All" dept users
-//            Map<String, User> approvalMap = new LinkedHashMap<>(actingMap);
-//            for (User u : allDeptUsers) approvalMap.put(u.getEmail(), u);
-//
-//            List<User> approvalList = approvalMap.values().stream()
-//                    .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
-//                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
-//                    .collect(Collectors.toList());
-//
-//            Map<String, Object> response = new HashMap<>();
-//            response.put("acting",      actingList);
-//            response.put("supervising", actingList);
-//            response.put("approval",    approvalList);
-//            response.put("department",  department);
-//
-//            logger.info("Officers for dept='{}': acting={}, approval={}, excluded={}",
-//                    department, actingList.size(), approvalList.size(), excludeEmail);
-            // ACTING: primary department ONLY
+        // ACTING: primary department ONLY
             List<User> actingList = primaryMatch.stream()
                     .filter(u -> !u.getEmail().equalsIgnoreCase(excludeEmail))
                     .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
@@ -1294,6 +1267,58 @@ public class LeaveController {
         }
     }
 
+
+    // ---------------- Edit Leave Dates ----------------
+    @PutMapping("/{leaveId}/edit-dates")
+    public ResponseEntity<?> editLeaveDates(
+            @PathVariable String leaveId,
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> request) {
+        try {
+            String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
+            String reason = (String) request.get("reason");
+
+            if (reason == null || reason.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("❌ Reason for date change is required");
+            }
+
+            LocalDate newStartDate = LocalDate.parse((String) request.get("startDate"));
+            LocalDate newEndDate   = LocalDate.parse((String) request.get("endDate"));
+
+            logger.info("Edit dates request for leave: {} by employee: {}", leaveId, email);
+
+            String result = leaveService.editLeaveDates(leaveId, email, newStartDate, newEndDate, reason);
+
+            if (result.contains("successfully")) {
+                try {
+                    leaveEntitlementService.forceRefreshEntitlements(email);
+                } catch (Exception e) {
+                    logger.error("Error refreshing entitlements after date edit: {}", e.getMessage(), e);
+                }
+                return ResponseEntity.ok("✅ " + result);
+            } else {
+                return ResponseEntity.badRequest().body("❌ " + result);
+            }
+
+        } catch (Exception e) {
+            logger.error("Error editing leave dates: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("❌ Failed to edit leave dates: " + e.getMessage());
+        }
+    }
+
+    // ---------------- Check if Leave Dates Can Be Edited ----------------
+    @GetMapping("/{leaveId}/can-edit-dates")
+    public ResponseEntity<?> canEditLeaveDates(
+            @PathVariable String leaveId,
+            @RequestHeader("Authorization") String token) {
+        try {
+            String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
+            Map<String, Object> result = leaveService.canEditLeaveDates(leaveId, email);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("❌ Failed to check edit eligibility");
+        }
+    }
     // ---------------- DashboardCounts Helper Class ----------------
     public static class DashboardCounts {
         private long pendingAsActingOfficer;
