@@ -741,11 +741,8 @@ public class LeaveService {
             return "You cannot select yourself as approval officer";
 
         // ── Cross-validation between officers ──
-        if (leaveRequest.hasActingOfficer() && leaveRequest.hasSupervisingOfficer()) {
-            if (actingOfficer.getEmail().equalsIgnoreCase(supervisingOfficer.getEmail()))
-                return "Acting officer and supervising officer must be different";
-        }
 
+        // NOTE: Acting officer and supervising officer are now allowed to be the same person.
         if (leaveRequest.hasActingOfficer()) {
             if (actingOfficer.getEmail().equalsIgnoreCase(approvalOfficer.getEmail()))
                 return "Acting officer and approval officer must be different";
