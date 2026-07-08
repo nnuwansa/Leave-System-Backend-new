@@ -26,6 +26,8 @@ public class LeaveResponse {
     private String halfDayPeriod;
     private LocalTime shortLeaveStartTime;
     private LocalTime shortLeaveEndTime;
+    private LocalTime halfDayStartTime;   // ← ADD
+    private LocalTime halfDayEndTime;     // ← ADD
 
     private boolean isMaternityLeave;
     private String maternityLeaveType;
@@ -84,6 +86,8 @@ public class LeaveResponse {
         this.halfDayPeriod = leave.getHalfDayPeriod();
         this.shortLeaveStartTime = leave.getShortLeaveStartTime();
         this.shortLeaveEndTime = leave.getShortLeaveEndTime();
+        this.halfDayStartTime = leave.getHalfDayStartTime();
+        this.halfDayEndTime = leave.getHalfDayEndTime();
 
         this.isMaternityLeave = leave.isMaternityLeave();
         this.maternityLeaveType = leave.getMaternityLeaveType();
@@ -172,6 +176,11 @@ public class LeaveResponse {
     public LocalTime getShortLeaveEndTime() { return shortLeaveEndTime; }
     public void setShortLeaveEndTime(LocalTime shortLeaveEndTime) { this.shortLeaveEndTime = shortLeaveEndTime; }
 
+    public LocalTime getHalfDayStartTime() { return halfDayStartTime; }
+    public void setHalfDayStartTime(LocalTime halfDayStartTime) { this.halfDayStartTime = halfDayStartTime; }
+
+    public LocalTime getHalfDayEndTime() { return halfDayEndTime; }
+    public void setHalfDayEndTime(LocalTime halfDayEndTime) { this.halfDayEndTime = halfDayEndTime; }
     public boolean isMaternityLeave() { return isMaternityLeave; }
     public void setMaternityLeave(boolean maternityLeave) { isMaternityLeave = maternityLeave; }
 
