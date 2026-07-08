@@ -1268,6 +1268,58 @@ public class LeaveController {
     }
 
 
+
+//    @PutMapping("/{leaveId}/edit-dates")
+//    public ResponseEntity<?> editLeaveDates(
+//            @PathVariable String leaveId,
+//            @RequestHeader("Authorization") String token,
+//            @RequestBody Map<String, Object> request) {
+//        try {
+//            String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
+//            String reason = (String) request.get("reason");
+//
+//            if (reason == null || reason.trim().isEmpty()) {
+//                return ResponseEntity.badRequest().body("❌ Reason for date change is required");
+//            }
+//
+//            LocalDate newStartDate = LocalDate.parse((String) request.get("startDate"));
+//            LocalDate newEndDate   = LocalDate.parse((String) request.get("endDate"));
+//
+//            logger.info("Edit dates request for leave: {} by employee: {}", leaveId, email);
+//
+//            String result = leaveService.editLeaveDates(leaveId, email, newStartDate, newEndDate, reason);
+//
+//            if (result.contains("successfully")) {
+//                try {
+//                    leaveEntitlementService.forceRefreshEntitlements(email);
+//                } catch (Exception e) {
+//                    logger.error("Error refreshing entitlements after date edit: {}", e.getMessage(), e);
+//                }
+//                return ResponseEntity.ok("✅ " + result);
+//            } else {
+//                return ResponseEntity.badRequest().body("❌ " + result);
+//            }
+//
+//        } catch (Exception e) {
+//            logger.error("Error editing leave dates: {}", e.getMessage(), e);
+//            return ResponseEntity.badRequest().body("❌ Failed to edit leave dates: " + e.getMessage());
+//        }
+//    }
+
+    // ---------------- Check if Leave Dates Can Be Edited ----------------
+    @GetMapping("/{leaveId}/can-edit-dates")
+    public ResponseEntity<?> canEditLeaveDates(
+            @PathVariable String leaveId,
+            @RequestHeader("Authorization") String token) {
+        try {
+            String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
+            Map<String, Object> result = leaveService.canEditLeaveDates(leaveId, email);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("❌ Failed to check edit eligibility");
+        }
+    }
+
     // ---------------- Edit Leave Dates ----------------
     @PutMapping("/{leaveId}/edit-dates")
     public ResponseEntity<?> editLeaveDates(
@@ -1282,12 +1334,19 @@ public class LeaveController {
                 return ResponseEntity.badRequest().body("❌ Reason for date change is required");
             }
 
-            LocalDate newStartDate = LocalDate.parse((String) request.get("startDate"));
-            LocalDate newEndDate   = LocalDate.parse((String) request.get("endDate"));
+            LocalDate newStartDate = request.get("startDate") != null
+                    ? LocalDate.parse((String) request.get("startDate")) : null;
+            LocalDate newEndDate = request.get("endDate") != null
+                    ? LocalDate.parse((String) request.get("endDate")) : null;
+            LocalTime newStartTime = request.get("startTime") != null
+                    ? LocalTime.parse((String) request.get("startTime")) : null;
+            LocalTime newEndTime = request.get("endTime") != null
+                    ? LocalTime.parse((String) request.get("endTime")) : null;
+            String newHalfDayPeriod = (String) request.get("halfDayPeriod");
 
-            logger.info("Edit dates request for leave: {} by employee: {}", leaveId, email);
-
-            String result = leaveService.editLeaveDates(leaveId, email, newStartDate, newEndDate, reason);
+            String result = leaveService.editLeaveDates(
+                    leaveId, email, newStartDate, newEndDate,
+                    newStartTime, newEndTime, newHalfDayPeriod, reason);
 
             if (result.contains("successfully")) {
                 try {
@@ -1303,20 +1362,6 @@ public class LeaveController {
         } catch (Exception e) {
             logger.error("Error editing leave dates: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body("❌ Failed to edit leave dates: " + e.getMessage());
-        }
-    }
-
-    // ---------------- Check if Leave Dates Can Be Edited ----------------
-    @GetMapping("/{leaveId}/can-edit-dates")
-    public ResponseEntity<?> canEditLeaveDates(
-            @PathVariable String leaveId,
-            @RequestHeader("Authorization") String token) {
-        try {
-            String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
-            Map<String, Object> result = leaveService.canEditLeaveDates(leaveId, email);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("❌ Failed to check edit eligibility");
         }
     }
     // ---------------- DashboardCounts Helper Class ----------------

@@ -932,6 +932,359 @@ public class LeaveService {
 // ============================================================
 
     // ------------------- CAN EDIT LEAVE DATES -------------------
+//    public Map<String, Object> canEditLeaveDates(String leaveId, String employeeEmail) {
+//        try {
+//            Leave leave = leaveRepository.findById(leaveId).orElse(null);
+//            if (leave == null)
+//                return Map.of("canEdit", false, "reason", "Leave request not found");
+//
+//            if (!leave.getEmployeeEmail().equalsIgnoreCase(employeeEmail))
+//                return Map.of("canEdit", false, "reason", "Not authorized");
+//
+//            if (leave.isCancelled() || leave.getStatus() == LeaveStatus.CANCELLED_BY_EMPLOYEE)
+//                return Map.of("canEdit", false, "reason", "Cancelled leave cannot be edited");
+//
+//            if (leave.getStatus() == LeaveStatus.REJECTED_BY_ACTING_OFFICER ||
+//                    leave.getStatus() == LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER ||
+//                    leave.getStatus() == LeaveStatus.REJECTED_BY_APPROVAL_OFFICER)
+//                return Map.of("canEdit", false, "reason", "Rejected leave cannot be edited");
+//
+//            // Short leave and half day date editing is not supported
+//            if (leave.isShortLeave())
+//                return Map.of("canEdit", false, "reason", "Short leave dates cannot be edited");
+//
+//            LocalDate today = LocalDate.now();
+//            if (leave.getStartDate().isBefore(today))
+//                return Map.of("canEdit", false, "reason", "Past leave dates cannot be edited");
+//
+//            return Map.of("canEdit", true, "reason", "");
+//        } catch (Exception e) {
+//            logger.error("Error checking if leave dates can be edited: {}", e.getMessage());
+//            return Map.of("canEdit", false, "reason", "Error checking eligibility");
+//        }
+//    }
+//
+//    // ------------------- EDIT LEAVE DATES -------------------
+//    public String editLeaveDates(String leaveId, String employeeEmail,
+//                                 LocalDate newStartDate, LocalDate newEndDate, String reason) {
+//        try {
+//            Leave leave = leaveRepository.findById(leaveId)
+//                    .orElseThrow(() -> new RuntimeException("Leave request not found"));
+//
+//            // Authorization check
+//            if (!leave.getEmployeeEmail().equalsIgnoreCase(employeeEmail))
+//                return "You are not authorized to edit this leave request";
+//
+//            // Status checks
+//            if (leave.isCancelled() || leave.getStatus() == LeaveStatus.CANCELLED_BY_EMPLOYEE)
+//                return "Cancelled leave cannot be edited";
+//
+//            if (leave.getStatus() == LeaveStatus.REJECTED_BY_ACTING_OFFICER ||
+//                    leave.getStatus() == LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER ||
+//                    leave.getStatus() == LeaveStatus.REJECTED_BY_APPROVAL_OFFICER)
+//                return "Rejected leave cannot be edited";
+//
+//            if (leave.isShortLeave())
+//                return "Short leave dates cannot be edited";
+//
+//            LocalDate today = LocalDate.now();
+//            if (leave.getStartDate().isBefore(today))
+//                return "Past leave dates cannot be edited";
+//
+//            // Date validation
+//            if (newStartDate.isBefore(today))
+//                return "New start date cannot be in the past";
+//
+//            if (newEndDate.isBefore(newStartDate))
+//                return "End date must be on or after start date";
+//
+//            // Half-day: only single date allowed
+//            if (leave.isHalfDay()) {
+//                if (!newStartDate.equals(newEndDate))
+//                    return "Half-day leave must be a single date";
+//                if (!workingDayCalculator.isWorkingDay(newStartDate))
+//                    return "Half-day leave cannot be on weekends or public holidays";
+//            }
+//
+//            boolean wasApproved = leave.getStatus() == LeaveStatus.APPROVED;
+//
+//            // ── Revert old entitlement if leave was approved ──
+//            if (wasApproved && !leave.isHalfDay()) {
+//                logger.info("Reverting entitlement before date edit for leave: {}", leaveId);
+//                leaveEntitlementService.revertEntitlementOnLeaveRejection(
+//                        leave.getEmployeeEmail(),
+//                        leave.getLeaveType(),
+//                        leave.getStartDate(),
+//                        leave.getEndDate(),
+//                        leave.isShortLeave(),
+//                        leave.isHalfDay(),
+//                        leave.getWorkingDays());
+//            } else if (wasApproved && leave.isHalfDay()) {
+//                leaveEntitlementService.revertEntitlementOnLeaveRejection(
+//                        leave.getEmployeeEmail(),
+//                        "HALF_DAY",
+//                        leave.getStartDate(),
+//                        leave.getEndDate(),
+//                        false, true, 0);
+//            }
+//
+//            // ── Calculate new working days ──
+//            Map<String, Integer> workingDaysBreakdown = null;
+//            int actualWorkingDays = 0;
+//
+//            if (!leave.isHalfDay()) {
+//                workingDaysBreakdown = workingDayCalculator.calculateWorkingDays(newStartDate, newEndDate);
+//                actualWorkingDays = workingDaysBreakdown.get("workingDays");
+//
+//                if (actualWorkingDays == 0)
+//                    return "Selected leave period contains only weekends and public holidays. No working days to deduct.";
+//
+//                // Validate entitlement with new dates
+//                String entitlementValidation = leaveEntitlementService.validateLeaveRequestWithWorkingDays(
+//                        employeeEmail, leave.getLeaveType(), newStartDate, newEndDate, actualWorkingDays);
+//
+//                if (!"VALID".equals(entitlementValidation) && !"VALID_USE_VACATION".equals(entitlementValidation))
+//                    return "Cannot update dates: " + entitlementValidation;
+//
+//                // Check for overlapping leaves (exclude current leave)
+//                List<Leave> overlapping = leaveRepository.findOverlappingLeaves(
+//                                employeeEmail, newStartDate, newEndDate).stream()
+//                        .filter(l -> !l.getId().equals(leaveId) &&
+//                                l.getStatus() != LeaveStatus.REJECTED_BY_ACTING_OFFICER &&
+//                                l.getStatus() != LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER &&
+//                                l.getStatus() != LeaveStatus.REJECTED_BY_APPROVAL_OFFICER &&
+//                                !l.isCancelled())
+//                        .collect(java.util.stream.Collectors.toList());
+//
+//                if (!overlapping.isEmpty())
+//                    return "New dates overlap with an existing leave request";
+//            }
+//
+//            // ── Preserve timestamps ──
+//            LocalDateTime originalCreatedAt            = leave.getCreatedAt();
+//            LocalDateTime originalActingApprovedAt     = leave.getActingOfficerApprovedAt();
+//            LocalDateTime originalSupervisingApprovedAt = leave.getSupervisingOfficerApprovedAt();
+//            LocalDateTime originalApprovalApprovedAt   = leave.getApprovalOfficerApprovedAt();
+//
+//            // ── Update leave dates ──
+//            leave.setStartDate(newStartDate);
+//            leave.setEndDate(newEndDate);
+//
+//            if (workingDaysBreakdown != null) {
+//                leave.setWorkingDays(workingDaysBreakdown.get("workingDays"));
+//                leave.setTotalDays(workingDaysBreakdown.get("totalDays"));
+//                leave.setWeekendDays(workingDaysBreakdown.get("weekendDays"));
+//                leave.setPublicHolidays(workingDaysBreakdown.get("publicHolidays"));
+//            } else if (leave.isHalfDay()) {
+//                leave.setWorkingDays(0);
+//                leave.setTotalDays(1);
+//                leave.setWeekendDays(0);
+//                leave.setPublicHolidays(0);
+//            }
+//
+//            // ── Restore timestamps ──
+//            if (originalCreatedAt != null)             leave.setCreatedAt(originalCreatedAt);
+//            if (originalActingApprovedAt != null)      leave.setActingOfficerApprovedAt(originalActingApprovedAt);
+//            if (originalSupervisingApprovedAt != null) leave.setSupervisingOfficerApprovedAt(originalSupervisingApprovedAt);
+//            if (originalApprovalApprovedAt != null)    leave.setApprovalOfficerApprovedAt(originalApprovalApprovedAt);
+//
+//            leaveRepository.save(leave);
+//
+//            // ── Re-apply entitlement if leave was approved ──
+//            if (wasApproved && !leave.isHalfDay()) {
+//                logger.info("Re-applying entitlement after date edit for leave: {}", leaveId);
+//                leaveEntitlementService.updateEntitlementOnLeaveApproval(
+//                        leave.getEmployeeEmail(),
+//                        leave.getLeaveType(),
+//                        newStartDate, newEndDate,
+//                        false, false, actualWorkingDays);
+//            } else if (wasApproved && leave.isHalfDay()) {
+//                leaveEntitlementService.updateEntitlementOnLeaveApproval(
+//                        leave.getEmployeeEmail(),
+//                        "HALF_DAY",
+//                        newStartDate, newEndDate,
+//                        false, true, 0);
+//            }
+//
+//            // ── Notify officers about date change ──
+//            try {
+////                notificationService.notifyLeaveDateChange(leave, reason);
+//            } catch (Exception e) {
+//                logger.warn("Failed to send date change notification: {}", e.getMessage());
+//            }
+//
+//            logger.info("Leave dates updated for {}: {} to {} (reason: {})",
+//                    employeeEmail, newStartDate, newEndDate, reason);
+//
+//            return "Leave dates updated successfully";
+//
+//        } catch (Exception e) {
+//            logger.error("Error editing leave dates: {}", e.getMessage(), e);
+//            return "Failed to edit leave dates: " + e.getMessage();
+//        }
+//    }
+//
+
+public String editLeaveDates(String leaveId, String employeeEmail,
+                             LocalDate newStartDate, LocalDate newEndDate,
+                             LocalTime newStartTime, LocalTime newEndTime,
+                             String newHalfDayPeriod, String reason) {
+    try {
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new RuntimeException("Leave request not found"));
+
+        if (!leave.getEmployeeEmail().equalsIgnoreCase(employeeEmail))
+            return "You are not authorized to edit this leave request";
+
+        if (leave.isCancelled() || leave.getStatus() == LeaveStatus.CANCELLED_BY_EMPLOYEE)
+            return "Cancelled leave cannot be edited";
+
+        if (leave.getStatus() == LeaveStatus.REJECTED_BY_ACTING_OFFICER ||
+                leave.getStatus() == LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER ||
+                leave.getStatus() == LeaveStatus.REJECTED_BY_APPROVAL_OFFICER)
+            return "Rejected leave cannot be edited";
+
+        LocalDate today = LocalDate.now();
+        if (leave.getStartDate().isBefore(today))
+            return "Past leave dates cannot be edited";
+
+        LocalDateTime originalCreatedAt = leave.getCreatedAt();
+
+        // ───────────── SHORT LEAVE: time only, same day ─────────────
+        if (leave.isShortLeave()) {
+            if (newStartTime == null || newEndTime == null)
+                return "Start time and end time are required";
+            if (!newEndTime.isAfter(newStartTime))
+                return "End time must be after start time";
+
+            leave.setShortLeaveStartTime(newStartTime);
+            leave.setShortLeaveEndTime(newEndTime);
+
+            if (originalCreatedAt != null) leave.setCreatedAt(originalCreatedAt);
+            leaveRepository.save(leave);
+
+            logger.info("Short leave time updated for {}: {} - {} (reason: {})",
+                    employeeEmail, newStartTime, newEndTime, reason);
+            return "Leave time updated successfully";
+        }
+
+        // ───────────── HALF DAY: date + period + time ─────────────
+        if (leave.isHalfDay()) {
+            LocalDate targetDate = newStartDate != null ? newStartDate : leave.getStartDate();
+
+            if (targetDate.isBefore(today))
+                return "New date cannot be in the past";
+            if (!workingDayCalculator.isWorkingDay(targetDate))
+                return "Half-day leave cannot be on weekends or public holidays";
+
+            boolean wasApproved = leave.getStatus() == LeaveStatus.APPROVED;
+
+            // Overlap check if date is actually changing
+            if (!targetDate.equals(leave.getStartDate())) {
+                List<Leave> overlapping = leaveRepository.findOverlappingLeaves(
+                                employeeEmail, targetDate, targetDate).stream()
+                        .filter(l -> !l.getId().equals(leaveId) &&
+                                l.getStatus() != LeaveStatus.REJECTED_BY_ACTING_OFFICER &&
+                                l.getStatus() != LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER &&
+                                l.getStatus() != LeaveStatus.REJECTED_BY_APPROVAL_OFFICER &&
+                                !l.isCancelled())
+                        .toList();
+                if (!overlapping.isEmpty())
+                    return "New date overlaps with an existing leave request";
+            }
+
+            // Half-day entitlement is date-independent (always 0.5), so no need to
+            // revert/reapply on date-only changes — only if status changes elsewhere.
+            leave.setStartDate(targetDate);
+            leave.setEndDate(targetDate);
+            if (newHalfDayPeriod != null && !newHalfDayPeriod.isBlank())
+                leave.setHalfDayPeriod(newHalfDayPeriod);
+            if (newStartTime != null) leave.setHalfDayStartTime(newStartTime);
+            if (newEndTime != null)   leave.setHalfDayEndTime(newEndTime);
+
+            if (originalCreatedAt != null) leave.setCreatedAt(originalCreatedAt);
+            leaveRepository.save(leave);
+
+            logger.info("Half-day leave updated for {}: date={}, period={}, {}-{} (reason: {})",
+                    employeeEmail, targetDate, leave.getHalfDayPeriod(), newStartTime, newEndTime, reason);
+            return "Leave updated successfully";
+        }
+
+        // ───────────── REGULAR / MATERNITY etc: existing date-only logic ─────────────
+        if (newStartDate == null || newEndDate == null)
+            return "Start date and end date are required";
+
+        if (newStartDate.isBefore(today))
+            return "New start date cannot be in the past";
+        if (newEndDate.isBefore(newStartDate))
+            return "End date must be on or after start date";
+
+        boolean wasApproved = leave.getStatus() == LeaveStatus.APPROVED;
+
+        if (wasApproved) {
+            leaveEntitlementService.revertEntitlementOnLeaveRejection(
+                    leave.getEmployeeEmail(), leave.getLeaveType(),
+                    leave.getStartDate(), leave.getEndDate(),
+                    leave.isShortLeave(), leave.isHalfDay(), leave.getWorkingDays());
+        }
+
+        Map<String, Integer> workingDaysBreakdown =
+                workingDayCalculator.calculateWorkingDays(newStartDate, newEndDate);
+        int actualWorkingDays = workingDaysBreakdown.get("workingDays");
+
+        if (actualWorkingDays == 0)
+            return "Selected leave period contains only weekends and public holidays. No working days to deduct.";
+
+        String entitlementValidation = leaveEntitlementService.validateLeaveRequestWithWorkingDays(
+                employeeEmail, leave.getLeaveType(), newStartDate, newEndDate, actualWorkingDays);
+        if (!"VALID".equals(entitlementValidation) && !"VALID_USE_VACATION".equals(entitlementValidation))
+            return "Cannot update dates: " + entitlementValidation;
+
+        List<Leave> overlapping = leaveRepository.findOverlappingLeaves(
+                        employeeEmail, newStartDate, newEndDate).stream()
+                .filter(l -> !l.getId().equals(leaveId) &&
+                        l.getStatus() != LeaveStatus.REJECTED_BY_ACTING_OFFICER &&
+                        l.getStatus() != LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER &&
+                        l.getStatus() != LeaveStatus.REJECTED_BY_APPROVAL_OFFICER &&
+                        !l.isCancelled())
+                .toList();
+        if (!overlapping.isEmpty())
+            return "New dates overlap with an existing leave request";
+
+        LocalDateTime originalActingApprovedAt      = leave.getActingOfficerApprovedAt();
+        LocalDateTime originalSupervisingApprovedAt = leave.getSupervisingOfficerApprovedAt();
+        LocalDateTime originalApprovalApprovedAt    = leave.getApprovalOfficerApprovedAt();
+
+        leave.setStartDate(newStartDate);
+        leave.setEndDate(newEndDate);
+        leave.setWorkingDays(workingDaysBreakdown.get("workingDays"));
+        leave.setTotalDays(workingDaysBreakdown.get("totalDays"));
+        leave.setWeekendDays(workingDaysBreakdown.get("weekendDays"));
+        leave.setPublicHolidays(workingDaysBreakdown.get("publicHolidays"));
+
+        if (originalCreatedAt != null)             leave.setCreatedAt(originalCreatedAt);
+        if (originalActingApprovedAt != null)      leave.setActingOfficerApprovedAt(originalActingApprovedAt);
+        if (originalSupervisingApprovedAt != null) leave.setSupervisingOfficerApprovedAt(originalSupervisingApprovedAt);
+        if (originalApprovalApprovedAt != null)    leave.setApprovalOfficerApprovedAt(originalApprovalApprovedAt);
+
+        leaveRepository.save(leave);
+
+        if (wasApproved) {
+            leaveEntitlementService.updateEntitlementOnLeaveApproval(
+                    leave.getEmployeeEmail(), leave.getLeaveType(),
+                    newStartDate, newEndDate, false, false, actualWorkingDays);
+        }
+
+        logger.info("Leave dates updated for {}: {} to {} (reason: {})",
+                employeeEmail, newStartDate, newEndDate, reason);
+        return "Leave dates updated successfully";
+
+    } catch (Exception e) {
+        logger.error("Error editing leave dates: {}", e.getMessage(), e);
+        return "Failed to edit leave dates: " + e.getMessage();
+    }
+}
+
     public Map<String, Object> canEditLeaveDates(String leaveId, String employeeEmail) {
         try {
             Leave leave = leaveRepository.findById(leaveId).orElse(null);
@@ -949,181 +1302,20 @@ public class LeaveService {
                     leave.getStatus() == LeaveStatus.REJECTED_BY_APPROVAL_OFFICER)
                 return Map.of("canEdit", false, "reason", "Rejected leave cannot be edited");
 
-            // Short leave and half day date editing is not supported
-            if (leave.isShortLeave())
-                return Map.of("canEdit", false, "reason", "Short leave dates cannot be edited");
-
             LocalDate today = LocalDate.now();
             if (leave.getStartDate().isBefore(today))
                 return Map.of("canEdit", false, "reason", "Past leave dates cannot be edited");
 
-            return Map.of("canEdit", true, "reason", "");
+            String editMode = leave.isShortLeave() ? "TIME_ONLY"
+                    : leave.isHalfDay() ? "DATE_AND_TIME"
+                    : "DATE_ONLY";
+
+            return Map.of("canEdit", true, "reason", "", "editMode", editMode);
         } catch (Exception e) {
             logger.error("Error checking if leave dates can be edited: {}", e.getMessage());
             return Map.of("canEdit", false, "reason", "Error checking eligibility");
         }
     }
-
-    // ------------------- EDIT LEAVE DATES -------------------
-    public String editLeaveDates(String leaveId, String employeeEmail,
-                                 LocalDate newStartDate, LocalDate newEndDate, String reason) {
-        try {
-            Leave leave = leaveRepository.findById(leaveId)
-                    .orElseThrow(() -> new RuntimeException("Leave request not found"));
-
-            // Authorization check
-            if (!leave.getEmployeeEmail().equalsIgnoreCase(employeeEmail))
-                return "You are not authorized to edit this leave request";
-
-            // Status checks
-            if (leave.isCancelled() || leave.getStatus() == LeaveStatus.CANCELLED_BY_EMPLOYEE)
-                return "Cancelled leave cannot be edited";
-
-            if (leave.getStatus() == LeaveStatus.REJECTED_BY_ACTING_OFFICER ||
-                    leave.getStatus() == LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER ||
-                    leave.getStatus() == LeaveStatus.REJECTED_BY_APPROVAL_OFFICER)
-                return "Rejected leave cannot be edited";
-
-            if (leave.isShortLeave())
-                return "Short leave dates cannot be edited";
-
-            LocalDate today = LocalDate.now();
-            if (leave.getStartDate().isBefore(today))
-                return "Past leave dates cannot be edited";
-
-            // Date validation
-            if (newStartDate.isBefore(today))
-                return "New start date cannot be in the past";
-
-            if (newEndDate.isBefore(newStartDate))
-                return "End date must be on or after start date";
-
-            // Half-day: only single date allowed
-            if (leave.isHalfDay()) {
-                if (!newStartDate.equals(newEndDate))
-                    return "Half-day leave must be a single date";
-                if (!workingDayCalculator.isWorkingDay(newStartDate))
-                    return "Half-day leave cannot be on weekends or public holidays";
-            }
-
-            boolean wasApproved = leave.getStatus() == LeaveStatus.APPROVED;
-
-            // ── Revert old entitlement if leave was approved ──
-            if (wasApproved && !leave.isHalfDay()) {
-                logger.info("Reverting entitlement before date edit for leave: {}", leaveId);
-                leaveEntitlementService.revertEntitlementOnLeaveRejection(
-                        leave.getEmployeeEmail(),
-                        leave.getLeaveType(),
-                        leave.getStartDate(),
-                        leave.getEndDate(),
-                        leave.isShortLeave(),
-                        leave.isHalfDay(),
-                        leave.getWorkingDays());
-            } else if (wasApproved && leave.isHalfDay()) {
-                leaveEntitlementService.revertEntitlementOnLeaveRejection(
-                        leave.getEmployeeEmail(),
-                        "HALF_DAY",
-                        leave.getStartDate(),
-                        leave.getEndDate(),
-                        false, true, 0);
-            }
-
-            // ── Calculate new working days ──
-            Map<String, Integer> workingDaysBreakdown = null;
-            int actualWorkingDays = 0;
-
-            if (!leave.isHalfDay()) {
-                workingDaysBreakdown = workingDayCalculator.calculateWorkingDays(newStartDate, newEndDate);
-                actualWorkingDays = workingDaysBreakdown.get("workingDays");
-
-                if (actualWorkingDays == 0)
-                    return "Selected leave period contains only weekends and public holidays. No working days to deduct.";
-
-                // Validate entitlement with new dates
-                String entitlementValidation = leaveEntitlementService.validateLeaveRequestWithWorkingDays(
-                        employeeEmail, leave.getLeaveType(), newStartDate, newEndDate, actualWorkingDays);
-
-                if (!"VALID".equals(entitlementValidation) && !"VALID_USE_VACATION".equals(entitlementValidation))
-                    return "Cannot update dates: " + entitlementValidation;
-
-                // Check for overlapping leaves (exclude current leave)
-                List<Leave> overlapping = leaveRepository.findOverlappingLeaves(
-                                employeeEmail, newStartDate, newEndDate).stream()
-                        .filter(l -> !l.getId().equals(leaveId) &&
-                                l.getStatus() != LeaveStatus.REJECTED_BY_ACTING_OFFICER &&
-                                l.getStatus() != LeaveStatus.REJECTED_BY_SUPERVISING_OFFICER &&
-                                l.getStatus() != LeaveStatus.REJECTED_BY_APPROVAL_OFFICER &&
-                                !l.isCancelled())
-                        .collect(java.util.stream.Collectors.toList());
-
-                if (!overlapping.isEmpty())
-                    return "New dates overlap with an existing leave request";
-            }
-
-            // ── Preserve timestamps ──
-            LocalDateTime originalCreatedAt            = leave.getCreatedAt();
-            LocalDateTime originalActingApprovedAt     = leave.getActingOfficerApprovedAt();
-            LocalDateTime originalSupervisingApprovedAt = leave.getSupervisingOfficerApprovedAt();
-            LocalDateTime originalApprovalApprovedAt   = leave.getApprovalOfficerApprovedAt();
-
-            // ── Update leave dates ──
-            leave.setStartDate(newStartDate);
-            leave.setEndDate(newEndDate);
-
-            if (workingDaysBreakdown != null) {
-                leave.setWorkingDays(workingDaysBreakdown.get("workingDays"));
-                leave.setTotalDays(workingDaysBreakdown.get("totalDays"));
-                leave.setWeekendDays(workingDaysBreakdown.get("weekendDays"));
-                leave.setPublicHolidays(workingDaysBreakdown.get("publicHolidays"));
-            } else if (leave.isHalfDay()) {
-                leave.setWorkingDays(0);
-                leave.setTotalDays(1);
-                leave.setWeekendDays(0);
-                leave.setPublicHolidays(0);
-            }
-
-            // ── Restore timestamps ──
-            if (originalCreatedAt != null)             leave.setCreatedAt(originalCreatedAt);
-            if (originalActingApprovedAt != null)      leave.setActingOfficerApprovedAt(originalActingApprovedAt);
-            if (originalSupervisingApprovedAt != null) leave.setSupervisingOfficerApprovedAt(originalSupervisingApprovedAt);
-            if (originalApprovalApprovedAt != null)    leave.setApprovalOfficerApprovedAt(originalApprovalApprovedAt);
-
-            leaveRepository.save(leave);
-
-            // ── Re-apply entitlement if leave was approved ──
-            if (wasApproved && !leave.isHalfDay()) {
-                logger.info("Re-applying entitlement after date edit for leave: {}", leaveId);
-                leaveEntitlementService.updateEntitlementOnLeaveApproval(
-                        leave.getEmployeeEmail(),
-                        leave.getLeaveType(),
-                        newStartDate, newEndDate,
-                        false, false, actualWorkingDays);
-            } else if (wasApproved && leave.isHalfDay()) {
-                leaveEntitlementService.updateEntitlementOnLeaveApproval(
-                        leave.getEmployeeEmail(),
-                        "HALF_DAY",
-                        newStartDate, newEndDate,
-                        false, true, 0);
-            }
-
-            // ── Notify officers about date change ──
-            try {
-//                notificationService.notifyLeaveDateChange(leave, reason);
-            } catch (Exception e) {
-                logger.warn("Failed to send date change notification: {}", e.getMessage());
-            }
-
-            logger.info("Leave dates updated for {}: {} to {} (reason: {})",
-                    employeeEmail, newStartDate, newEndDate, reason);
-
-            return "Leave dates updated successfully";
-
-        } catch (Exception e) {
-            logger.error("Error editing leave dates: {}", e.getMessage(), e);
-            return "Failed to edit leave dates: " + e.getMessage();
-        }
-    }
-
 
     // ------------------- MATERNITY HELPERS -------------------
     private boolean isContinuationRequest(Leave existingLeave, LeaveRequest newRequest) {
