@@ -1364,6 +1364,31 @@ public class LeaveController {
             return ResponseEntity.badRequest().body("❌ Failed to edit leave dates: " + e.getMessage());
         }
     }
+
+    // ============================================================================
+// ADD TO LeaveController.java
+// PUT /leaves/{id}/edit
+// ============================================================================
+
+    @PutMapping("/{id}/edit")
+    public ResponseEntity<?> editLeaveRequest(
+            @PathVariable String id,
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> body) {
+        try {
+            String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
+            Map<String, Object> result = leaveService.editLeaveRequest(id, email, body);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Error editing leave {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(500)
+                    .body(Map.of("success", false, "message", "❌ " + e.getMessage()));
+        }
+    }
+
     // ---------------- DashboardCounts Helper Class ----------------
     public static class DashboardCounts {
         private long pendingAsActingOfficer;

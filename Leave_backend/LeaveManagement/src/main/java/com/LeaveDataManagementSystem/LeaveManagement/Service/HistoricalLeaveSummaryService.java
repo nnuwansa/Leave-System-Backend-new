@@ -310,6 +310,12 @@ public class HistoricalLeaveSummaryService {
             logger.info("Creating new historical summary for employee: {}, year: {}", employeeEmail, year);
         }
 
+        // Always (re)resolve userId — covers both new docs and legacy docs missing it
+        if (summary.getUserId() == null) {
+            User u = userRepository.findByEmail(employeeEmail);
+            if (u != null) summary.setUserId(u.getId());
+        }
+
         summary.setCasualUsed(summaryData.getCasualUsed());
         summary.setCasualTotal(summaryData.getCasualTotal());
         summary.setSickUsed(summaryData.getSickUsed());
@@ -384,6 +390,8 @@ public class HistoricalLeaveSummaryService {
                 // ── Optional: pre-create the next year record now ────────
                 LeaveEntitlement preCreate = new LeaveEntitlement(employeeEmail, "SICK", newTotal, nextYear);
                 preCreate.setCarryOverDays(carryOver);
+                User preCreateUser = userRepository.findByEmail(employeeEmail);
+                if (preCreateUser != null) preCreate.setUserId(preCreateUser.getId());
                 leaveEntitlementRepository.save(preCreate);
                 logger.info("Pre-created {} SICK entitlement for {} with total={}, carryOver={}",
                         nextYear, employeeEmail, newTotal, carryOver);
